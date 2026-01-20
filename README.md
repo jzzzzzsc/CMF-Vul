@@ -30,4 +30,13 @@ python joern_graph_gen.py -i ./data/sard/bins -o ./data/sard/pdgs -t export -r p
 
 ```
 ###2.PDG images Generation
+The PDG images in this project are generated using **Xdot**.
+We note that the same functionality can also be achieved via the
+`graphviz` library in Python.
+
+To convert graph representations into image files, please run the
+provided script:
+
+```bash
+python graph-image.py
 
