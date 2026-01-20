@@ -1,6 +1,12 @@
 # CMF-Vul
-https://huggingface.co/microsoft/unixcoder-base
 
-https://huggingface.co/microsoft/codebert-base
+The pre-trained models used in this project can be obtained from the following links:
 
-https://huggingface.co/docs/transformers/model_doc/swinv2
+- **UniXcoder**  
+  https://huggingface.co/microsoft/unixcoder-base
+
+- **CodeBERT**  
+  https://huggingface.co/microsoft/codebert-base
+
+- **SwinV2**  
+  https://huggingface.co/docs/transformers/model_doc/swinv2
