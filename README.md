@@ -29,3 +29,5 @@ python joern_graph_gen.py -i ./data/sard -o ./data/sard/bins -t parse
 python joern_graph_gen.py -i ./data/sard/bins -o ./data/sard/pdgs -t export -r pdg
 
 ```
+###2.PDG images Generation
+
