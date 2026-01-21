@@ -1,0 +1,290 @@
+import re
+import random
+from typing import List, Tuple, Optional
+
+
+class CppCodeTransformer:
+    def __init__(self, code: str):
+        self.original_code = code
+        self.code = code
+        self.lines = code.split("\n")
+        self.applied_rules: List[str] = []
+
+    def apply_all_rules(self) -> Tuple[str, List[str]]:
+        self.code = self.original_code
+        self.lines = self.code.split("\n")
+        self.applied_rules = []
+
+        self._swap_operands()
+        self._reorder_statements()
+        self._transform_loops()
+        self._swap_if_branches()
+        self._switch_to_if()
+
+        return self.code, self.applied_rules
+
+    def apply_specific_rule(self, rule_num: int) -> Optional[Tuple[str, List[str]]]:
+        rule_map = {
+            2: self._swap_operands,
+            3: self._reorder_statements,
+            4: self._transform_loops,
+            5: self._swap_if_branches,
+            6: self._switch_to_if,
+        }
+        if rule_num not in rule_map:
+            return None
+
+        self.code = self.original_code
+        self.lines = self.code.split("\n")
+        self.applied_rules = []
+
+        rule_map[rule_num]()
+        return self.code, self.applied_rules
+
+    def _swap_operands(self) -> None:
+        def swap_match(match: re.Match) -> str:
+            left, op, right = match.groups()
+            self.applied_rules.append("OperandSwap")
+            return f"{right} {op} {left}"
+
+        atom = r"(?:[a-zA-Z_]\w*(?:\.\w+)*|\d+)"
+        pattern = rf"(?<!\w)({atom})\s*([+*])\s*({atom})(?!\w)"
+        self.code = re.sub(pattern, swap_match, self.code)
+        self.lines = self.code.split("\n")
+
+    def _reorder_statements(self) -> None:
+        swappable_pairs: List[int] = []
+        for i in range(len(self.lines) - 1):
+            line1 = self.lines[i].strip()
+            line2 = self.lines[i + 1].strip()
+
+            if (
+                self._is_declaration(line1)
+                and self._is_declaration(line2)
+                and not self._has_dependency(line1, line2)
+                and not self._has_dependency(line2, line1)
+            ):
+                swappable_pairs.append(i)
+
+        if swappable_pairs:
+            idx = random.choice(swappable_pairs)
+            self.lines[idx], self.lines[idx + 1] = self.lines[idx + 1], self.lines[idx]
+            self.applied_rules.append("StatementReorder")
+            self.code = "\n".join(self.lines)
+
+    def _transform_loops(self) -> None:
+        def normalize_stmt(s: str) -> str:
+            s = s.strip()
+            if not s:
+                return ""
+            return s if s.endswith(";") else s + ";"
+
+        def normalize_incr(s: str) -> str:
+            s = s.strip()
+            if not s:
+                return ""
+            return s[:-1] if s.endswith(";") else s
+
+        def for_to_while(match: re.Match) -> str:
+            init, cond, incr, body = match.groups()
+            init_s = normalize_stmt(init)
+            cond_s = cond.strip() or "true"
+            incr_s = normalize_incr(incr)
+            body_s = body.rstrip()
+
+            self.applied_rules.append("ForToWhile")
+
+            parts = []
+            if init_s:
+                parts.append(init_s)
+            parts.append(f"while ({cond_s}) {{")
+            if body_s.strip():
+                parts.append(body_s)
+            if incr_s:
+                parts.append(f"{incr_s};")
+            parts.append("}")
+            return "\n".join(parts)
+
+        def while_to_for(match: re.Match) -> str:
+            cond, body = match.groups()
+            cond_s = cond.strip() or "true"
+            body_s = body.rstrip()
+
+            self.applied_rules.append("WhileToFor")
+
+            parts = [f"for (; {cond_s}; ) {{", body_s, "}"]
+            return "\n".join([p for p in parts if p is not None])
+
+        self.code = re.sub(
+            r"for\s*\(\s*(.*?)\s*;\s*(.*?)\s*;\s*(.*?)\s*\)\s*\{([\s\S]*?)\}",
+            for_to_while,
+            self.code,
+            flags=re.DOTALL,
+        )
+
+        self.code = re.sub(
+            r"while\s*\(\s*(.*?)\s*\)\s*\{([\s\S]*?)\}",
+            while_to_for,
+            self.code,
+            flags=re.DOTALL,
+        )
+
+        self.lines = self.code.split("\n")
+
+    def _swap_if_branches(self) -> None:
+        def swap_if(match: re.Match) -> str:
+            cond, then_block, else_block = match.groups()
+            self.applied_rules.append("IfBranchSwap")
+            reversed_cond = self._reverse_condition(cond)
+            return (
+                f"if ({reversed_cond}) {{\n{else_block}\n}} else {{\n{then_block}\n}}"
+            )
+
+        self.code = re.sub(
+            r"if\s*\(\s*(.*?)\s*\)\s*\{([\s\S]*?)\}\s*else\s*\{([\s\S]*?)\}",
+            swap_if,
+            self.code,
+            flags=re.DOTALL,
+        )
+
+        self.lines = self.code.split("\n")
+
+    def _switch_to_if(self) -> None:
+        def strip_trailing_break(block: str) -> str:
+            block = block.strip()
+            block = re.sub(r"\bbreak\s*;\s*$", "", block).strip()
+            return block
+
+        def transform_switch(match: re.Match) -> str:
+            var, cases = match.groups()
+            var = var.strip()
+            cases_text = cases
+
+            self.applied_rules.append("SwitchToIf")
+
+            tokens = re.split(r"(\bcase\b|\bdefault\b)", cases_text)
+            items = []
+            i = 0
+            while i < len(tokens):
+                tok = tokens[i]
+                if tok in ("case", "default"):
+                    label = tok
+                    rest = tokens[i + 1] if i + 1 < len(tokens) else ""
+                    items.append((label, rest))
+                    i += 2
+                else:
+                    i += 1
+
+            parsed_cases = []
+            default_block = None
+
+            for label, rest in items:
+                if label == "case":
+                    m = re.match(r"\s*([^:]+)\s*:\s*([\s\S]*)", rest)
+                    if not m:
+                        continue
+                    val, body = m.groups()
+                    body = strip_trailing_break(body)
+                    parsed_cases.append((val.strip(), body))
+                else:
+                    m = re.match(r"\s*:\s*([\s\S]*)", rest)
+                    if m:
+                        default_block = strip_trailing_break(m.group(1))
+
+            if not parsed_cases and default_block is None:
+                return match.group(0)
+
+            out = []
+            for idx, (val, body) in enumerate(parsed_cases):
+                head = "if" if idx == 0 else "else if"
+                out.append(f"{head} ({var} == {val}) {{\n{body}\n}}")
+
+            if default_block is not None:
+                if out:
+                    out.append(f"else {{\n{default_block}\n}}")
+                else:
+                    out.append(default_block)
+
+            return "\n".join(out)
+
+        self.code = re.sub(
+            r"switch\s*\(\s*(.*?)\s*\)\s*\{([\s\S]*?)\}",
+            transform_switch,
+            self.code,
+            flags=re.DOTALL,
+        )
+
+        self.lines = self.code.split("\n")
+
+    def _is_declaration(self, line: str) -> bool:
+        return bool(
+            re.fullmatch(
+                r"(?:const\s+)?(?:int|float|double|char|bool|auto)\s+\w+\s*(?:=\s*[^;]+)?\s*;",
+                line.strip(),
+            )
+        )
+
+    def _has_dependency(self, line1: str, line2: str) -> bool:
+        writes_line1 = set(re.findall(r"(?:^|\s)(\w+)\s*=", line1))
+        reads_line2 = set(re.findall(r"(?<!\w)([a-zA-Z_]\w*)(?!\s*:)", line2))
+        return len(writes_line1 & reads_line2) > 0
+
+    def _reverse_condition(self, cond: str) -> str:
+        cond = cond.strip()
+
+        pairs = [
+            ("==", "!="),
+            ("!=", "=="),
+            (">=", "<"),
+            ("<=", ">"),
+            (">", "<="),
+            ("<", ">="),
+        ]
+
+        for op, rop in pairs:
+            if op in cond:
+                return cond.replace(op, rop, 1)
+
+        if cond.startswith("!"):
+            inner = cond[1:].strip()
+            if inner.startswith("(") and inner.endswith(")"):
+                return inner[1:-1].strip()
+        return f"!({cond})"
+
+
+if __name__ == "__main__":
+    sample_code = r"""
+#include <iostream>
+using namespace std;
+
+int main() {
+    int result = a * b + c;
+
+    int x = 10;
+    int y = 20;
+    int z = x + y;
+
+    for (int i = 0; i < 10; i++) {
+        cout << i << endl;
+    }
+
+    if (x > 0) {
+        printf("Positive");
+    } else {
+        printf("NonPositive");
+    }
+
+    switch (grade) {
+        case 'A': score = 90; break;
+        case 'B': score = 80; break;
+        default: score = 60;
+    }
+
+    return 0;
+}
+"""
+
+    transformer = CppCodeTransformer(sample_code)
+    transformed_code, applied_rules = transformer.apply_all_rules()
+    print(applied_rules)
+    print(transformed_code)
