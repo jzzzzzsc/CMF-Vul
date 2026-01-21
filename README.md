@@ -1,4 +1,16 @@
 # CMF-Vul
+## Data Availability
+
+The datasets used and analyzed in this study are publicly available at the following locations:
+
+- **Big-Vul**  
+  https://github.com/ZeoVan/MSR_20_Code_vulnera-bility_CSV_Dataset
+
+- **SARD**  
+  https://github.com/Lifeasarain/MGVD/blob/master-/dataset/sard/csv/data.csv
+
+- **FFmpeg & Qemu**  
+  https://drive.google.com/file/d/1x6hoF7G-tSYxg8AFybggypLZgMGDNHfF/edit
 
 The pre-trained models used in this project can be obtained from the following links:
 
